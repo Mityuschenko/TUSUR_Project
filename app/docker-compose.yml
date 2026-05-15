@@ -1,0 +1,47 @@
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    # command: "serve"
+    # entrypoint: ["/bin/ollama", "serve"]
+
+  api:
+    build: .
+    restart: always
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - ollama
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: db # Имя сервиса PostgreSQL в Docker Compose
+      OLLAMA_HOST: ollama:11434 # Имя сервиса Ollama в Docker Compose
+    volumes:
+      - ./app:/app/app # Монтируем папку с исходным кодом для разработки (опционально, можно убрать для продакшена)
+      - ./data:/app/data # Монтируем папку data для ChromaDB и SQLite record manager
+
+volumes:
+  postgres_data:
+  ollama_data:
