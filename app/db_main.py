@@ -3,17 +3,23 @@
 
 # в данном случае имя файла базы данных SQLite - record_manager_cache.sql
 
-# Импортируем модуль asyncio для работы с асинхронным кодом и управления циклом событий
-import asyncio
+import os
+import asyncio # Импортируем модуль asyncio для работы с асинхронным кодом и управления циклом событий
+import asyncpg  # Добавьте импорт asyncpg для прямой проверки СУБД
+from dotenv import load_dotenv  # Импортируем загрузчик .env
+from constants import RECORD_MANAGER # Импортируем путь к базе данных SQLite из модуля с константами нашего приложения
+from langchain_classic.indexes import SQLRecordManager # Импортируем класс SQLRecordManager из LangChain для управления индексами документов
+from dependencies import connect_and_create_db # Импортируем функцию для подключения к БД и создания таблиц. Она определена в файле dependencies.py
 
-# Импортируем путь к базе данных SQLite из модуля с константами нашего приложения
-from constants import RECORD_MANAGER
+# Загружаем переменные из файла .env в окружение системы
+load_dotenv()
 
-# Импортируем класс SQLRecordManager из LangChain для управления индексами документов
-from langchain_classic.indexes import SQLRecordManager
-
-# Импортируем функцию для подключения к БД и создания таблиц. Она определена в файле dependencies.py
-from dependencies import connect_and_create_db
+# Извлекаем переменные (если их нет в .env, подставятся значения по умолчанию)
+DB_USER = os.getenv("POSTGRES_USER", "Analyst")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+DB_NAME = os.getenv("POSTGRES_DB", "bpmn_models")
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_PORT = os.getenv("DB_PORT", "5432")
 
 # Инициализируем менеджер записей, настраивая его параметры для работы с базой данных
 record_manager = SQLRecordManager(
@@ -30,13 +36,41 @@ async def main_SQLite_init():
     # Асинхронно создаем таблицы и схему данных в SQLite, если они еще не созданы
     await record_manager.acreate_schema()
 
-# Главная асинхронная функция для инициализации PostgreSQL таблицы
-async def main_pg_init():
-    print("Попытка подключения к PostgreSQL и создания таблицы...")
+
+async def create_database_if_not_exists():
+    # Подключаемся к системной базе 'postgres' используя переменные окружения
+    conn = await asyncpg.connect(
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database='postgres',
+        host=DB_HOST,
+        port=int(DB_PORT)
+    )
+
+    # Проверяем, существует ли целевая база данных проекта
+    db_exists = await conn.fetchval("SELECT 1 FROM pg_database WHERE datname = $1", DB_NAME)
+
+    if not db_exists:
+        print(f"База данных {DB_NAME} не найдена. Создаю...")
+        await conn.execute(f'CREATE DATABASE "{DB_NAME}" OWNER "{DB_USER}";') # Базы данных в Postgres нельзя создавать внутри транзакций, поэтому используем специальный синтаксис
+        print(f"База данных {DB_NAME} успешно создана.")
+    else:
+        print(f"База данных {DB_NAME} уже существует.")
+
+    await conn.close()
+
+async def main_pg_init(): # Главная асинхронная функция для инициализации PostgreSQL
+    print("Проверка наличия базы данных на сервере PostgreSQL...")
+    try:
+        await create_database_if_not_exists()
+    except Exception as e:
+        print(f"Ошибка при проверке/создании БД: {e}")
+
+    print("Попытка подключения к PostgreSQL и создания таблиц...")
     await connect_and_create_db()
-    print("Процесс инициализации PostgreSQL завершен.")
+    print("Процесс initialization PostgreSQL завершен.")
 
 # Проверяем, что скрипт запущен напрямую пользователем, а не импортирован как модуль
 if __name__ == "__main__":
-  asyncio.run(main_SQLite_init())
-  asyncio.run(main_pg_init())
+    asyncio.run(main_SQLite_init())
+    asyncio.run(main_pg_init())

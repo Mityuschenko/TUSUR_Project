@@ -1,7 +1,10 @@
 
-from google.colab import userdata
 from pathlib import Path
 import os
+from dotenv import load_dotenv # Добавлено для явной загрузки .env
+
+# Явно загружаем переменные окружения из файла .env
+load_dotenv() # Добавлено для явной загрузки .env
 
 # Папка, где лежит constants.py
 CURRENT_DIR = Path(__file__).parent
@@ -27,8 +30,9 @@ RECORD_MANAGER = f"sqlite+aiosqlite:///{DB_PATH.as_posix()}"
 
 LLM_MODEL = "gemma3:4b"
 
+# Теперь эти константы будут браться из .env, или использовать значения по умолчанию
 POSTGRES_USER = os.getenv("POSTGRES_USER", "Analyst")
-POSTGRES_PASSWORD = userdata.get('POSTGRES_PASSWORD') or os.getenv('POSTGRES_PASSWORD', '12345678')
+POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD', '12345678')
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
 POSTGRES_DB = os.getenv("POSTGRES_DB", "bpmn_models")
